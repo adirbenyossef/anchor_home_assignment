@@ -1,0 +1,23 @@
+[
+    {
+        "id": "cell-demo-1",
+        "cellValue": "demo-value",
+        "columnId": "col-demo-1",
+        "rowIndex": 1,
+        "isWithLookup": false
+    },
+    {
+        "id": "cell-demo-2",
+        "cellValue": "lookup(col-demo-1,3)",
+        "columnId": "col-demo-1",
+        "rowIndex": 2,
+        "isWithLookup": true
+    },
+    {
+        "id": "cell-demo-3",
+        "cellValue": "im result from lookup",
+        "columnId": "col-demo-1",
+        "rowIndex": 3,
+        "isWithLookup": false
+    }
+]
