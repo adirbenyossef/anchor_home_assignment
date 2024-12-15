@@ -2,11 +2,14 @@ package com.sheet.cellflow.lookup.model;
 
 import java.util.Objects;
 
+import com.sheet.cellflow.column.model.ColumnType;
 import com.sheet.cellflow.exception.ExceptionMapper;
 
 public class Lookup {
     private final String columnIdentifier; //could be columnName for POST input DTO but columnId for GET input DTO
     private final int rowIndex;
+    private String targetCellValue;
+    private ColumnType targetColumnType;
 
     public Lookup(Object value){
         String val = value.toString();
@@ -26,5 +29,21 @@ public class Lookup {
 
     public int getRowIndex() {
         return rowIndex;
+    }
+
+    public String getTargetValue() {
+        return this.targetCellValue;
+    }
+
+    public ColumnType getColumnType() {
+        return this.targetColumnType;
+    }
+
+    public void setValue(String cellValue) {
+        this.targetCellValue = cellValue;
+    }
+
+    public void setColumnType(ColumnType columnType) {
+        this.targetColumnType = columnType;
     }
 }

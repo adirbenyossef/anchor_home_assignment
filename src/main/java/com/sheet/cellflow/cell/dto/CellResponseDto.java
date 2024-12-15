@@ -5,7 +5,8 @@ public record CellResponseDto(
     Integer rowIndex,
     Object value,
     String columnId,
-    boolean isWithLookup
+    boolean isWithLookup,
+    String error
 ) {
 
 }

@@ -23,47 +23,89 @@ import com.sheet.cellflow.sheet.repository.SheetRepository;
 
 @Service
 public class SheetService {
+
     private final SheetRepository sheetRepo;
     private final ColumnService columnService;
     private final LookupService lookupService;
-    
+
+    private final CircuitBreaker circuitBreaker;
+
     public SheetService(
-        SheetRepository sheetRepo, 
-        ColumnService columnService,         
-        LookupService lookupService
+        SheetRepository sheetRepo,
+        ColumnService columnService,
+        LookupService lookupService,
+        CircuitBreaker circuitBreaker
     ) {
         this.sheetRepo = sheetRepo;
         this.columnService = columnService;
         this.lookupService = lookupService;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public Optional<SheetResponseDto> find(String sheetId) {
-        if(!sheetRepo.existsById(sheetId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ExceptionMapper.UNDEFINED_SHEET_ID.getError());
+        if (!circuitBreaker.checkState()) {
+            throw new SheetOperationException("Circuit breaker is OPEN. Requests are blocked.");
         }
-        List<ColumnResponseDto> columns = columnService.filterBySheetId(sheetId);
-        return Optional.ofNullable(new SheetResponseDto(sheetId, columns));
+        try {
+            if(!sheetRepo.existsById(sheetId)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        ExceptionMapper.UNDEFINED_SHEET_ID.getError());
+            }
+            List<ColumnResponseDto> columns = columnService.filterBySheetId(sheetId);
+            circuitBreaker.reset(); // Success, reset the circuit breaker
+            return Optional.of(new SheetResponseDto(sheetId, columns));
+        } catch (Exception e) {
+            circuitBreaker.recordFailure();
+            throw e;
+        }
     }
 
     public String setSheet(List<ColumnRequestDto> columns) {
+        if (!circuitBreaker.checkState()) {
+            throw new SheetOperationException("Circuit breaker is OPEN. Requests are blocked.");
+        }
         try {
             Sheet sheetEntity = new Sheet();
             String sheetId = UUID.randomUUID().toString();
             sheetEntity.setId(sheetId);
             this.sheetRepo.save(sheetEntity);
             this.columnService.setColumns(columns, sheetId);
+            circuitBreaker.reset(); // Success, reset the circuit breaker
             return sheetId;
         } catch(Exception e) {
-            throw new SheetOperationException(ExceptionMapper.SHEET_CREATE_FAILED.getError() + e.getMessage(), e);
+            circuitBreaker.recordFailure();
+            throw new SheetOperationException(
+                    ExceptionMapper.SHEET_CREATE_FAILED.getError() + e.getMessage(), e);
         }
     }
 
     public boolean isSheetExist(String sheetId) {
-        return sheetRepo.existsById(sheetId);
+        if (!circuitBreaker.checkState()) {
+            throw new SheetOperationException("Circuit breaker is OPEN. Requests are blocked.");
+        }
+        try {
+            boolean exists = sheetRepo.existsById(sheetId);
+            circuitBreaker.reset(); // Success, reset the circuit breaker
+            return exists;
+        } catch (Exception e) {
+            circuitBreaker.recordFailure();
+            throw e;
+        }
     }
 
     public CellResponseDto setCell(CreateCellRequestDto req, String sheetId) {
-        Column column = columnService.findByNameAndSheetId(req.columnName(), sheetId);
-        return lookupService.setCell(req, column.getId(), column.getColumnType(), sheetId);
+        if (!circuitBreaker.checkState()) {
+            throw new SheetOperationException("Circuit breaker is OPEN. Requests are blocked.");
+        }
+        try {
+            Column column = columnService.findByNameAndSheetId(req.columnName(), sheetId);
+            CellResponseDto response = lookupService.setCell(
+                    req, column.getId(), column.getColumnType(), sheetId);
+            circuitBreaker.reset(); // Success, reset the circuit breaker
+            return response;
+        } catch (Exception e) {
+            circuitBreaker.recordFailure();
+            throw e;
+        }
     }
 }

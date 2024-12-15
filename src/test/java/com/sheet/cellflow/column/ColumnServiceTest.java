@@ -80,7 +80,7 @@ class ColumnServiceTest {
     }
 
     private List<CellResponseDto> generateMockCells() {
-        CellResponseDto cell = new CellResponseDto("cel-id", 1, "adir", "col-id", false);
+        CellResponseDto cell = new CellResponseDto("cel-id", 1, "adir", "col-id", false, null);
         List<CellResponseDto> cells = new ArrayList<>();
         cells.add(cell);
         return cells;

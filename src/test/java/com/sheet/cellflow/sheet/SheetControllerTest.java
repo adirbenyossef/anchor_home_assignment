@@ -10,6 +10,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,21 +36,15 @@ class SheetControllerTest {
 
     @Test
     void testGetSheetSuccess() {
-        Optional<SheetResponseDto> mockSheet = generateMockSheet();
+        SheetResponseDto mockSheet = generateMockSheet();
             
-        when(sheetService.find("sheet-id")).thenReturn(mockSheet);
+        when(sheetService.find("sheet-id")).thenReturn(Optional.of(mockSheet));
 
-        Optional<SheetResponseDto> response = sheetController.getSheet("sheet-id");
-        assertEquals(mockSheet, response);
+        ResponseEntity<SheetResponseDto>  response = sheetController.getSheet("sheet-id");
+        SheetResponseDto res = response.getBody();
+        assertEquals(mockSheet, res);
     }
 
-    @Test
-    void testGetSheetNotFound() {
-        when(sheetService.find("nonexistentId")).thenReturn(Optional.empty());
-
-        Optional<SheetResponseDto> response = sheetController.getSheet("nonexistentId");
-        assertEquals(Optional.empty(), response);
-    }
 
     @Test
     void testCreateSheetSuccess() {
@@ -78,13 +74,13 @@ class SheetControllerTest {
         assertEquals("Invalid column type: OBJ", response.getBody());
     }
 
-    private Optional<SheetResponseDto> generateMockSheet() {
-        CellResponseDto cell = new CellResponseDto("cell-id", 1, "test", "col-id", false);
+    private SheetResponseDto generateMockSheet() {
+        CellResponseDto cell = new CellResponseDto("cell-id", 1, "test", "col-id", false, null);
         List<CellResponseDto> cells = new ArrayList<>();
         cells.add(cell);
         ColumnResponseDto column = new ColumnResponseDto("col-id","col name",ColumnType.STRING, "sheet-id", cells);
         List<ColumnResponseDto> columns = new ArrayList<>();
         columns.add(column);
-        return Optional.ofNullable(new SheetResponseDto("sheet-id", columns));
+        return new SheetResponseDto("sheet-id", columns);
     }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -15,6 +16,7 @@ import com.sheet.cellflow.cell.dto.CellResponseDto;
 import com.sheet.cellflow.cell.model.Cell;
 import com.sheet.cellflow.cell.repository.CellRepository;
 import com.sheet.cellflow.cell.service.CellService;
+import com.sheet.cellflow.exception.ExceptionMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CellServiceTest {
@@ -71,13 +73,13 @@ class CellServiceTest {
     void testGetCellSuccessWithMaxLookUp() {
         int maxLookup = 3;
         List<Cell> cellsFirstRequest = generateMockCells("lookup(col-id,2)",1, true);
-        List<CellResponseDto> expected = generateCellResponseDTO(cellsFirstRequest, "Lookup MAX Exceeded");
+        List<CellResponseDto> expected = generateCellResponseDTO(cellsFirstRequest,  ExceptionMapper.MAX_LOOKUP_CHAIN_REACHED.getError());
 
         when(cellRepo.findAllByColumnId("col-id")).thenReturn(cellsFirstRequest);
         for (int i = 2; i< maxLookup +3; i++) { //start from 2 since rowIndex 1 is occupied by first cell  
             int idx = i + 1;
             Cell cell = generateMockCells("lookup(col-id," + idx + ")", i, true).getFirst();
-            when(cellRepo.findByColumnIdAndRowIndex("col-id", i)).thenReturn(cell);
+            lenient().when(cellRepo.findByColumnIdAndRowIndex("col-id", i)).thenReturn(cell);
         }
 
         List<CellResponseDto> response = cellService.filterByColumnId("col-id");
@@ -99,7 +101,8 @@ class CellServiceTest {
             c.getRowIndex(),
             value,
             c.getColumnId(),
-            c.getIsWithLookup()
+            c.getIsWithLookup(),
+            null
         );
         expected.add(colRes);
         return expected;

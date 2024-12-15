@@ -20,6 +20,7 @@ import com.sheet.cellflow.exception.SheetOperationException;
 
 @Service
 public class ColumnService {
+    
     private final ColumnRepository columnRepo;
     private final CellService cellService;
     
@@ -64,6 +65,10 @@ public class ColumnService {
         } catch(Exception e) {
             throw new SheetOperationException(ExceptionMapper.SAVE_COLUMN_FAILED.getError() + e.getMessage(), e);
         }
+    }
+
+    public Column findById(String id) {
+        return this.columnRepo.findById(id).orElseThrow(() -> new CellOperationException("column not found"));
     }
 
     public Column findByNameAndSheetId(String columnName, String sheetId) {

@@ -17,8 +17,10 @@ import com.sheet.cellflow.lookup.model.Lookup;
 
 @Service
 public class CellService {
+    
     @Value("${app.maxLookupChain}")
     private static final int MAX_LOOKUP_CHAIN = 2;
+    
     private final CellRepository cellRepo;
 
     public CellService(CellRepository cellRepo) {
@@ -75,7 +77,8 @@ public class CellService {
             cellEntity.getRowIndex(), 
             value,
             cellEntity.getColumnId(), 
-            cellEntity.getIsWithLookup()
+            cellEntity.getIsWithLookup(),
+            null
         );
     }
 }

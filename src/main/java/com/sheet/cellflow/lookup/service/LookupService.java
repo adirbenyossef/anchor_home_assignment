@@ -22,8 +22,10 @@ import com.sheet.cellflow.lookup.model.Lookup;
 
 @Service
 public class LookupService {
+
     @Value("${app.maxLookupChain}")
     private static final int MAX_LOOKUP_CHAIN = 2; 
+
     private final CellService cellService;
     private final ColumnService columnService;
 
@@ -33,15 +35,23 @@ public class LookupService {
     }
 
     public CellResponseDto setCell(CreateCellRequestDto req, String columnId, ColumnType columnType, String sheetId) {
-          boolean isWithLookup = this.isWithLookup(req.value());
-          if(!isWithLookup) {
-            SetCellRecord partialCell = new SetCellRecord(columnId, req.rowIndex(), isWithLookup, req.value().toString(), columnType);
-            return this.cellService.setCell(partialCell);
-          } else {
-            String cellValue = this.generateLookupCellValue(req, columnId, columnType, sheetId);
-            SetCellRecord setCellInput = new SetCellRecord(columnId, req.rowIndex(), isWithLookup, cellValue,columnType);
-            return this.cellService.setCell(setCellInput);
-          }
+        boolean hasLookup = isWithLookup(req.value());
+        String cellValue;
+
+        if (hasLookup) {
+            String sourceValue = generateLookupValue(columnId, req.rowIndex());
+            Lookup lookup = getLookupValue(sourceValue, req, sheetId, columnType);
+            cellValue = generateLookupValue(lookup.getColumnIdentifier(), lookup.getRowIndex());
+        } else {
+            cellValue = req.value().toString();
+        }
+
+        SetCellRecord partialCell = new SetCellRecord(columnId, req.rowIndex(), hasLookup, cellValue, columnType);
+        return cellService.setCell(partialCell);
+    }
+
+    private String generateLookupValue(String columnId, int rowIndex) {
+        return "lookup(" + columnId + "," + rowIndex+ ")";
     }
 
     private boolean isWithLookup(Object value) {
@@ -53,46 +63,45 @@ public class LookupService {
         }
     }
 
-    private String generateLookupCellValue(CreateCellRequestDto req, String columnId, ColumnType columnType, String sheetId) {
-        String sourceValue = "lookup(" + columnId + "," + req.rowIndex() + ")";
-        validateLookupFunction(req, columnType, sheetId, sourceValue);
-        return sourceValue;
-    }
-
-    private void validateLookupFunction(CreateCellRequestDto req, ColumnType columnType, String sheetId, String sourceValue) {
-        if(!columnType.isValidValue(req.value())) {
-            throw new CellOperationException(ExceptionMapper.INVALID_LOOKUP_TARGET_CELL_IS_CURRENT_CELL.getError() + " value," + req.value() + " column type " + columnType);
-        }
-        boolean isLookupWithoutCycle = this.isLookupWithoutCycle(sourceValue, sheetId, columnType);
-        if(!isLookupWithoutCycle) {
-            throw new CellOperationException(ExceptionMapper.CYCLE_FAILED.getError()); 
-        }
-    }
-    
-    private boolean isLookupWithoutCycle(String sourceValue,String sheetId, ColumnType sourceType) {
+      private Lookup getLookupValue(String sourceValue, CreateCellRequestDto request, String sheetId, ColumnType sourceType) {
         Set<String> visitedValues = new HashSet<>();
         visitedValues.add(sourceValue);
-        Deque<String> stk = new ArrayDeque<>();
-        stk.push(sourceValue);
-        int i = 0;
-        while(i< MAX_LOOKUP_CHAIN && !stk.isEmpty()) {
-            String cur = stk.pop();
-            if(visitedValues.contains(cur)) {
+
+        Lookup targetLookup = new Lookup(request.value());
+        Deque<String> stack = new ArrayDeque<>();
+        Column targetLookupColumn = columnService.findByNameAndSheetId(targetLookup.getColumnIdentifier(), sheetId);
+        String targetValue = generateLookupValue(targetLookupColumn.getId(), targetLookup.getRowIndex());
+        stack.push(targetValue);
+
+        int lookupCount = 0;
+        while (lookupCount < MAX_LOOKUP_CHAIN && !stack.isEmpty()) {
+            String currentValue = stack.pop();
+
+            if (lookupCount != 0 && visitedValues.contains(currentValue)) {
                 throw new CellOperationException(ExceptionMapper.CYCLE_FAILED.getError());
             }
-            visitedValues.add(cur);
-            Lookup lookup = new Lookup(cur);
-            Column targetColumn = this.columnService.findByNameAndSheetId(lookup.getColumnIdentifier(), sheetId);
-            Cell targetCell = this.cellService.findByColumnIdAndRowIndex(lookup.getColumnIdentifier(), lookup.getRowIndex());
-            if(!targetColumn.getColumnType().equals(sourceType)) {
-                throw new CellOperationException(ExceptionMapper.INVALID_LOOKUP_TARGET_COLUMN_TYPE_NOT_MATCHED.getError() + " targetColumnType " + targetColumn.getColumnType() + " sourColumnType" + sourceType);
+
+            visitedValues.add(currentValue);
+            Lookup lookup = new Lookup(currentValue);
+            Column targetColumn = columnService.findById(lookup.getColumnIdentifier());
+            Cell targetCell = cellService.findByColumnIdAndRowIndex(lookup.getColumnIdentifier(), lookup.getRowIndex());
+
+            if (!targetColumn.getColumnType().equals(sourceType)) {
+                throw new CellOperationException(ExceptionMapper.INVALID_COLUMN_TYPE.getError() +
+                        " targetColumnType: " + targetColumn.getColumnType() +
+                        " sourceColumnType: " + sourceType);
             }
-            if(!isWithLookup(targetCell.getCellValue())) {
-                return true;
+
+            if (!isWithLookup(targetCell.getCellValue())) {
+                lookup.setValue(targetCell.getCellValue());
+                lookup.setColumnType(targetColumn.getColumnType());
+                return lookup;
             }
-            stk.push(targetCell.getCellValue());
-            i++;
+
+            stack.push(targetCell.getCellValue());
+            lookupCount++;
         }
-        return false;
+
+        throw new CellOperationException(ExceptionMapper.MAX_LOOKUP_CHAIN_REACHED.getError());
     }
 }
